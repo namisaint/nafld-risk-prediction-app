@@ -4,6 +4,7 @@ import pickle
 import numpy as np
 import shap
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 # --- Data and Model Loading ---
 
@@ -33,7 +34,7 @@ def load_model():
         st.error(f"The model file '{model_path}' was not found. Please ensure it is uploaded to GitHub.")
         st.stop()
     except pickle.UnpicklingError:
-        st.error(f"The model file '{model_path}' could not be loaded. Please ensure it was saved with a compatible Python version (3.11).")
+        st.error(f"The model file '{model_path}' could not be loaded. This often happens due to a Python version mismatch.")
         st.stop()
 
 # Load the data and model
@@ -151,12 +152,12 @@ with st.form("risk_assessment_form"):
         # --- SHAP Explainability ---
         st.subheader("Explanation of the Prediction")
         
-        # This code generates the SHAP plots
         explainer = shap.TreeExplainer(model)
-        shap_values = explainer.shap_values(user_data)
+        # Ensure shap_values is a single array for visualization
+        shap_values_to_plot = explainer.shap_values(user_data)[1]
         
         st.write("This chart shows how each factor contributed to your risk score:")
         shap.initjs()
         plt.figure()
-        shap.force_plot(explainer.expected_value[1], shap_values[1], user_data, show=False)
+        shap.force_plot(explainer.expected_value[1], shap_values_to_plot, user_data, show=False)
         st.pyplot(plt.gcf())
