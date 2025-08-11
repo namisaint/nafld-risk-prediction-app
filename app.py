@@ -8,24 +8,19 @@ import seaborn as sns
 
 # --- Data and Model Loading ---
 
-# This function loads a small sample of your pre-processed data.
-# The app needs this data to create the SHAP plots.
 @st.cache_data
 def get_local_data():
     try:
-        # This file must be uploaded to your GitHub repository
+        # Load a small sample of the pre-processed data
         df = pd.read_csv('preprocessed_data_sample.csv') 
         return df
     except FileNotFoundError:
-        st.error("The data file 'preprocessed_data_sample.csv' was not found. Please ensure it is uploaded to GitHub.")
+        st.error("The data file 'preprocessed_data_sample.csv' was not found. Please upload it to GitHub.")
         st.stop()
 
 
-# This function loads your trained machine learning model.
-# The app needs this file to make predictions.
 @st.cache_resource
 def load_model():
-    # This file must be uploaded to your GitHub repository
     model_path = 'rf_lifestyle_model (1).pkl'
     try:
         with open(model_path, 'rb') as f:
@@ -40,6 +35,21 @@ def load_model():
 # Load the data and model
 df_sample = get_local_data()
 model = load_model()
+
+# --- Preprocessing Pipeline Function ---
+
+def preprocessing_pipeline(user_inputs, df_sample_data):
+    # This function ensures the user's input matches the model's expectations
+    
+    # Create a DataFrame with the user's input
+    user_df = pd.DataFrame([user_inputs], columns=user_inputs.keys())
+    
+    # Reindex the user data to match the feature order of the original data
+    # This is the crucial step that fixes the static prediction issue
+    expected_columns = df_sample_data.drop(columns=['Fatty_Liver']).columns
+    user_df = user_df.reindex(columns=expected_columns, fill_value=0)
+
+    return user_df
 
 
 # --- Main Streamlit App Logic ---
@@ -115,22 +125,22 @@ with st.form("risk_assessment_form"):
         sleep_trouble_map = {'Never': 1, 'Rarely': 2, 'Sometimes': 3, 'Often': 4}
         sleep_diagnosis_map = {'Yes': 1, 'No': 2}
         
-        # Create a DataFrame from the user's input and encode categorical values
-        user_data = pd.DataFrame({
-            'RIAGENDR': [gender_map.get(gender_input)],
-            'RIDAGEYR': [age],
-            'RIDRETH3': [race_ethnicity_map.get(race_ethnicity_input)],
-            'INDFMPIR': [income_ratio],
-            'ALQ111': [has_drank_map.get(has_drank_12_input)],
-            'ALQ121': [how_often_drink],
-            'ALQ142': [drinks_per_day],
-            'ALQ151': [has_drank_map.get(has_heavy_drank_input)],
-            'ALQ170': [num_heavy_drink_days],
-            'Is_Smoker_Cat': [smoker_map.get(smoker_status_input)],
-            'SLQ050': [sleep_trouble_map.get(sleep_trouble_input)],
-            'SLQ120': [sleep_diagnosis_map.get(sleep_diagnosis_input)],
-            'SLD012': [sleep_hours],
-            'DR1TKCAL': [calories],
+        # Collect raw inputs from the user
+        user_inputs = {
+            'RIAGENDR': gender_map.get(gender_input),
+            'RIDAGEYR': age,
+            'RIDRETH3': race_ethnicity_map.get(race_ethnicity_input),
+            'INDFMPIR': income_ratio,
+            'ALQ111': has_drank_map.get(has_drank_12_input),
+            'ALQ121': how_often_drink,
+            'ALQ142': drinks_per_day,
+            'ALQ151': has_drank_map.get(has_heavy_drank_input),
+            'ALQ170': num_heavy_drink_days,
+            'Is_Smoker_Cat': smoker_map.get(smoker_status_input),
+            'SLQ050': sleep_trouble_map.get(sleep_trouble_input),
+            'SLQ120': sleep_diagnosis_map.get(sleep_diagnosis_input),
+            'SLD012': sleep_hours,
+            'DR1TKCAL': calories,
             'DR1TPROT': [protein],
             'DR1TCARB': [carbs],
             'DR1TSUGR': [sugar],
@@ -138,10 +148,13 @@ with st.form("risk_assessment_form"):
             'DR1TTFAT': [total_fat],
             'PAQ620': [paq620],
             'BMXBMI': [bmi],
-        })
+        }
         
+        # Create a DataFrame from the user's input and ensure column order matches
+        user_data_processed = preprocessing_pipeline(user_inputs, df_sample)
+
         # Make the prediction
-        prediction = model.predict(user_data)[0]
+        prediction = model.predict(user_data_processed)[0]
 
         st.subheader("Your Results")
         if prediction == 1:
@@ -149,15 +162,14 @@ with st.form("risk_assessment_form"):
         else:
             st.success("Based on your data, you are likely not at risk for NAFLD.")
 
-        # --- SHAP Explainability ---
+        # SHAP Explainability
         st.subheader("Explanation of the Prediction")
         
         explainer = shap.TreeExplainer(model)
-        # Ensure shap_values is a single array for visualization
-        shap_values_to_plot = explainer.shap_values(user_data)[1]
+        shap_values = explainer.shap_values(user_data_processed)
         
         st.write("This chart shows how each factor contributed to your risk score:")
         shap.initjs()
         plt.figure()
-        shap.force_plot(explainer.expected_value[1], shap_values_to_plot, user_data, show=False)
+        shap.force_plot(explainer.expected_value[1], shap_values[1], user_data_processed, show=False)
         st.pyplot(plt.gcf())
