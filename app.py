@@ -2,11 +2,29 @@ import streamlit as st
 import pandas as pd
 import pickle
 import numpy as np
+import shap
+import matplotlib.pyplot as plt
 
 # --- Data and Model Loading ---
 
+# This function loads a small sample of your pre-processed data.
+# The app needs this data to create the SHAP plots.
+@st.cache_data
+def get_local_data():
+    try:
+        # This file must be uploaded to your GitHub repository
+        df = pd.read_csv('preprocessed_data_sample.csv') 
+        return df
+    except FileNotFoundError:
+        st.error("The data file 'preprocessed_data_sample.csv' was not found. Please ensure it is uploaded to GitHub.")
+        st.stop()
+
+
+# This function loads your trained machine learning model.
+# The app needs this file to make predictions.
 @st.cache_resource
 def load_model():
+    # This file must be uploaded to your GitHub repository
     model_path = 'rf_lifestyle_model (1).pkl'
     try:
         with open(model_path, 'rb') as f:
@@ -18,8 +36,10 @@ def load_model():
         st.error(f"The model file '{model_path}' could not be loaded. Please ensure it was saved with a compatible Python version (3.11).")
         st.stop()
 
-# Load the model
+# Load the data and model
+df_sample = get_local_data()
 model = load_model()
+
 
 # --- Main Streamlit App Logic ---
 
@@ -127,3 +147,16 @@ with st.form("risk_assessment_form"):
             st.error("Based on your data, you are at risk for NAFLD.")
         else:
             st.success("Based on your data, you are likely not at risk for NAFLD.")
+
+        # --- SHAP Explainability ---
+        st.subheader("Explanation of the Prediction")
+        
+        # This code generates the SHAP plots
+        explainer = shap.TreeExplainer(model)
+        shap_values = explainer.shap_values(user_data)
+        
+        st.write("This chart shows how each factor contributed to your risk score:")
+        shap.initjs()
+        plt.figure()
+        shap.force_plot(explainer.expected_value[1], shap_values[1], user_data, show=False)
+        st.pyplot(plt.gcf())
