@@ -127,27 +127,27 @@ with st.form("risk_assessment_form"):
         
         # Collect raw inputs from the user
         user_inputs = {
-            'RIAGENDR': [gender_map.get(gender_input)],
-            'RIDAGEYR': [age],
-            'RIDRETH3': [race_ethnicity_map.get(race_ethnicity_input)],
-            'INDFMPIR': [income_ratio],
-            'ALQ111': [has_drank_map.get(has_drank_12_input)],
-            'ALQ121': [how_often_drink],
-            'ALQ142': [drinks_per_day],
-            'ALQ151': [has_drank_map.get(has_heavy_drank_input)],
-            'ALQ170': [num_heavy_drink_days],
-            'Is_Smoker_Cat': [smoker_map.get(smoker_status_input)],
-            'SLQ050': [sleep_trouble_map.get(sleep_trouble_input)],
-            'SLQ120': [sleep_diagnosis_map.get(sleep_diagnosis_input)],
-            'SLD012': [sleep_hours],
-            'DR1TKCAL': [calories],
-            'DR1TPROT': [protein],
-            'DR1TCARB': [carbs],
-            'DR1TSUGR': [sugar],
-            'DR1TFIBE': [fiber],
-            'DR1TTFAT': [total_fat],
-            'PAQ620': [paq620],
-            'BMXBMI': [bmi],
+            'RIAGENDR': gender_map.get(gender_input),
+            'RIDAGEYR': age,
+            'RIDRETH3': race_ethnicity_map.get(race_ethnicity_input),
+            'INDFMPIR': income_ratio,
+            'ALQ111': has_drank_map.get(has_drank_12_input),
+            'ALQ121': how_often_drink,
+            'ALQ142': drinks_per_day,
+            'ALQ151': has_drank_map.get(has_heavy_drank_input),
+            'ALQ170': num_heavy_drink_days,
+            'Is_Smoker_Cat': smoker_map.get(smoker_status_input),
+            'SLQ050': sleep_trouble_map.get(sleep_trouble_input),
+            'SLQ120': sleep_diagnosis_map.get(sleep_diagnosis_input),
+            'SLD012': sleep_hours,
+            'DR1TKCAL': calories,
+            'DR1TPROT': protein,
+            'DR1TCARB': carbs,
+            'DR1TSUGR': sugar,
+            'DR1TFIBE': fiber,
+            'DR1TTFAT': total_fat,
+            'PAQ620': paq620,
+            'BMXBMI': bmi,
         }
         
         # Create a DataFrame from the user's input and ensure column order matches
@@ -162,14 +162,16 @@ with st.form("risk_assessment_form"):
         else:
             st.success("Based on your data, you are likely not at risk for NAFLD.")
 
-        # SHAP Explainability
+        # --- SHAP Explainability ---
         st.subheader("Explanation of the Prediction")
         
         explainer = shap.TreeExplainer(model)
-        shap_values = explainer.shap_values(user_data_processed)
+        # The SHAP values will be a list of two arrays for a binary classifier
+        # We need to get the values for class 1, which represents 'at risk'
+        shap_values_to_plot = explainer.shap_values(user_data_processed)[1]
         
         st.write("This chart shows how each factor contributed to your risk score:")
         shap.initjs()
         plt.figure()
-        shap.force_plot(explainer.expected_value[1], shap_values[1], user_data_processed, show=False)
+        shap.force_plot(explainer.expected_value[1], shap_values_to_plot, user_data_processed, show=False)
         st.pyplot(plt.gcf())
