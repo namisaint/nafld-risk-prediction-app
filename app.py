@@ -1,31 +1,12 @@
 import streamlit as st
 import pandas as pd
 import pickle
-import shap
-import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.metrics import confusion_matrix, roc_auc_score, accuracy_score, precision_score, recall_score
+import numpy as np
 
 # --- Data and Model Loading ---
 
-# This function loads a small sample of your pre-processed data.
-# The app needs this data to create the SHAP plots.
-@st.cache_data
-def get_local_data():
-    try:
-        # This file must be uploaded to your GitHub repository
-        df = pd.read_csv('preprocessed_data_sample.csv') 
-        return df
-    except FileNotFoundError:
-        st.error("The data file 'preprocessed_data_sample.csv' was not found. Please upload it to GitHub.")
-        st.stop()
-
-
-# This function loads your trained machine learning model.
-# The app needs this file to make predictions.
 @st.cache_resource
 def load_model():
-    # This file must be uploaded to your GitHub repository
     model_path = 'rf_lifestyle_model (1).pkl'
     try:
         with open(model_path, 'rb') as f:
@@ -34,13 +15,11 @@ def load_model():
         st.error(f"The model file '{model_path}' was not found. Please ensure it is uploaded to GitHub.")
         st.stop()
     except pickle.UnpicklingError:
-        st.error(f"The model file '{model_path}' could not be loaded. This often happens due to a Python version mismatch.")
+        st.error(f"The model file '{model_path}' could not be loaded. Please ensure it was saved with a compatible Python version (3.11).")
         st.stop()
 
-# Load the data and model
-df_sample = get_local_data()
+# Load the model
 model = load_model()
-
 
 # --- Main Streamlit App Logic ---
 
@@ -103,17 +82,23 @@ with st.form("risk_assessment_form"):
     if submitted:
         # --- Data Encoding and Prediction Logic ---
         
-        # Convert categorical inputs to numerical values
+        # Mapping for categorical variables
         gender_map = {'Male': 1, 'Female': 2}
+        race_ethnicity_map = {
+            'Mexican American': 1, 'Other Hispanic': 2,
+            'Non-Hispanic White': 3, 'Non-Hispanic Black': 4,
+            'Other Race - Including Multi-Racial': 6
+        }
         has_drank_map = {'Yes': 1, 'No': 2}
-        smoker_map = {'Never': 0, 'Former': 1, 'Current': 2} # Assumes this mapping was used
+        smoker_map = {'Never': 0, 'Former': 1, 'Current': 2}
         sleep_trouble_map = {'Never': 1, 'Rarely': 2, 'Sometimes': 3, 'Often': 4}
         sleep_diagnosis_map = {'Yes': 1, 'No': 2}
         
+        # Create a DataFrame from the user's input and encode categorical values
         user_data = pd.DataFrame({
             'RIAGENDR': [gender_map.get(gender_input)],
             'RIDAGEYR': [age],
-            'RIDRETH3': [race_ethnicity], # This needs to be one-hot encoded or label encoded
+            'RIDRETH3': [race_ethnicity_map.get(race_ethnicity_input)],
             'INDFMPIR': [income_ratio],
             'ALQ111': [has_drank_map.get(has_drank_12_input)],
             'ALQ121': [how_often_drink],
@@ -133,9 +118,8 @@ with st.form("risk_assessment_form"):
             'PAQ620': [paq620],
             'BMXBMI': [bmi],
         })
-
+        
         # Make the prediction
-        model = load_model()
         prediction = model.predict(user_data)[0]
 
         st.subheader("Your Results")
@@ -143,15 +127,3 @@ with st.form("risk_assessment_form"):
             st.error("Based on your data, you are at risk for NAFLD.")
         else:
             st.success("Based on your data, you are likely not at risk for NAFLD.")
-
-        # SHAP Explainability
-        st.subheader("Explanation of the Prediction")
-        
-        explainer = shap.TreeExplainer(model)
-        shap_values = explainer.shap_values(user_data)
-        
-        st.write("This chart shows how each factor contributed to your risk score:")
-        shap.initjs()
-        plt.figure()
-        shap.force_plot(explainer.expected_value[1], shap_values[1], user_data, show=False)
-        st.pyplot(plt.gcf())
