@@ -42,7 +42,7 @@ def preprocessing_pipeline(user_inputs, df_sample_data):
     # This function ensures the user's input matches the model's expectations
     
     # Create a DataFrame with the user's input
-    user_df = pd.DataFrame([user_inputs], columns=user_inputs.keys())
+    user_df = pd.DataFrame(user_inputs)
     
     # Reindex the user data to match the feature order of the original data
     # This is the crucial step that fixes the static prediction issue
@@ -127,20 +127,20 @@ with st.form("risk_assessment_form"):
         
         # Collect raw inputs from the user
         user_inputs = {
-            'RIAGENDR': gender_map.get(gender_input),
-            'RIDAGEYR': age,
-            'RIDRETH3': race_ethnicity_map.get(race_ethnicity_input),
-            'INDFMPIR': income_ratio,
-            'ALQ111': has_drank_map.get(has_drank_12_input),
-            'ALQ121': how_often_drink,
-            'ALQ142': drinks_per_day,
-            'ALQ151': has_drank_map.get(has_heavy_drank_input),
-            'ALQ170': num_heavy_drink_days,
-            'Is_Smoker_Cat': smoker_map.get(smoker_status_input),
-            'SLQ050': sleep_trouble_map.get(sleep_trouble_input),
-            'SLQ120': sleep_diagnosis_map.get(sleep_diagnosis_input),
-            'SLD012': sleep_hours,
-            'DR1TKCAL': calories,
+            'RIAGENDR': [gender_map.get(gender_input)],
+            'RIDAGEYR': [age],
+            'RIDRETH3': [race_ethnicity_map.get(race_ethnicity_input)],
+            'INDFMPIR': [income_ratio],
+            'ALQ111': [has_drank_map.get(has_drank_12_input)],
+            'ALQ121': [how_often_drink],
+            'ALQ142': [drinks_per_day],
+            'ALQ151': [has_drank_map.get(has_heavy_drank_input)],
+            'ALQ170': [num_heavy_drink_days],
+            'Is_Smoker_Cat': [smoker_map.get(smoker_status_input)],
+            'SLQ050': [sleep_trouble_map.get(sleep_trouble_input)],
+            'SLQ120': [sleep_diagnosis_map.get(sleep_diagnosis_input)],
+            'SLD012': [sleep_hours],
+            'DR1TKCAL': [calories],
             'DR1TPROT': [protein],
             'DR1TCARB': [carbs],
             'DR1TSUGR': [sugar],
