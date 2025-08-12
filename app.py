@@ -1,12 +1,13 @@
 # app.py — NAFLD Risk Self-Screening (uses saved scikit-learn Pipeline)
-# Expecting a pickle trained on: scikit-learn 1.5.2, numpy 2.0.1 (Python 3.13 default on Streamlit)
+# Expect your pickle to be trained on sklearn 1.5.2 / numpy 2.0.x (Py 3.13 on Streamlit)
+
 import streamlit as st
 import pandas as pd
 import joblib
 from pathlib import Path
 import sys
 
-# ==== exact feature schema (must match training) ====
+# ===== exact feature schema (must match training) =====
 FEATURES = [
     # Sociodemographic
     "RIAGENDR","RIDRETH3","RIDAGEYR","INDFMPIR",
@@ -38,7 +39,7 @@ st.set_page_config(page_title="NAFLD Risk Self-Screening Tool", page_icon="🧪"
 st.title("NAFLD Risk Self-Screening Tool")
 st.write("Enter your data below to receive a non-invasive risk assessment.")
 
-# show environment versions (helps debug version mismatches)
+# show env versions (helps catch version mismatches)
 try:
     import sklearn, numpy
     st.caption(f"Python {sys.version.split()[0]} • scikit-learn {sklearn.__version__} • numpy {numpy.__version__}")
@@ -47,26 +48,18 @@ except Exception:
 
 @st.cache_resource
 def load_pipeline():
-    # look in repo root first, then models/
-    root_path = Path(__file__).parent / "nafld_pipeline.pkl"
-    models_path = Path(__file__).parent / "models" / "nafld_pipeline.pkl"
-    model_path = root_path if root_path.exists() else models_path
+    model_path = Path(__file__).parent / "models" / "nafld_pipeline.pkl"
     if not model_path.exists():
-        st.error(
-            "Model file not found.\n\n"
-            "Looked for:\n"
-            f"• {root_path}\n"
-            f"• {models_path}\n\n"
-            "Please commit 'nafld_pipeline.pkl' to the repo root (or models/)."
-        )
+        st.error(f"Model file not found at: {model_path}\n\n"
+                 f"Make sure it’s committed to your repo at exactly this path.")
         st.stop()
     try:
         return joblib.load(model_path)
     except Exception as e:
         import sklearn, numpy
         st.error(
-            "Failed to load model pickle. This almost always means the installed "
-            "scikit-learn/numpy/Python versions don’t match the versions used to train it.\n\n"
+            "Failed to load model pickle. This usually means the installed "
+            "scikit-learn/numpy/Python versions don’t match what was used to train it.\n\n"
             f"Runtime here → Python {sys.version.split()[0]}, sklearn {sklearn.__version__}, numpy {numpy.__version__}\n\n"
             f"Raw error: {type(e).__name__}: {e}"
         )
@@ -77,7 +70,7 @@ pipe = load_pipeline()
 with st.form("risk_assessment_form"):
     st.subheader("Sociodemographic & Lifestyle Data")
 
-    # Sociodemographic
+    # === Sociodemographic ===
     st.markdown("### Sociodemographic Data")
     col1, col2 = st.columns(2)
     with col1:
@@ -87,7 +80,7 @@ with st.form("risk_assessment_form"):
         RIDAGEYR = st.slider("Age in Years (RIDAGEYR)", 18, 99, 45)
         INDFMPIR = st.number_input("Family Income-to-Poverty Ratio (INDFMPIR)", min_value=0.0, value=1.5, step=0.1)
 
-    # Alcohol & Smoking
+    # === Alcohol & Smoking ===
     st.markdown("### Alcohol and Smoking Data")
     col1, col2 = st.columns(2)
     with col1:
@@ -99,7 +92,7 @@ with st.form("risk_assessment_form"):
         ALQ170 = st.number_input("Number of days had 5+/4+ drinks? (ALQ170)", min_value=0.0, value=0.0, step=1.0)
         ALQ151 = st.selectbox("Ever had 5+/4+ drinks in a day? (ALQ151)", CHOICES["ALQ151"])
 
-    # Sleep
+    # === Sleep ===
     st.markdown("### Sleep Data")
     col1, col2 = st.columns(2)
     with col1:
@@ -108,7 +101,7 @@ with st.form("risk_assessment_form"):
         SLD012 = st.slider("Average sleep hours per day (SLD012)", 1, 12, 7)
         SLQ120 = st.selectbox("Had a medical sleep diagnosis? (SLQ120)", CHOICES["SLQ120"])
 
-    # Diet (24h)
+    # === Diet (24h) ===
     st.markdown("### Dietary Intake (Last 24 Hours)")
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -121,7 +114,7 @@ with st.form("risk_assessment_form"):
         DR1TFIBE = st.number_input("Total Fiber (DR1TFIBE)", min_value=0.0, value=25.0, step=1.0)
         DR1TTFAT = st.number_input("Total Fat (DR1TTFAT)", min_value=0.0, value=65.0, step=2.0)
 
-    # Physical & Anthropometric
+    # === Physical & Anthropometric ===
     st.markdown("### Physical & Anthropometric Data")
     col1, col2 = st.columns(2)
     with col1:
