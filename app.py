@@ -1,12 +1,12 @@
-# app.py — NAFLD Risk Self-Screening (uses saved pipeline)
-# Works with pipeline saved using scikit-learn 1.5.2 / numpy 2.0.x
+# app.py — NAFLD Risk Self-Screening (uses saved scikit-learn Pipeline)
+# Expecting a pickle trained on: scikit-learn 1.5.2, numpy 2.0.1 (Python 3.13 default on Streamlit)
 import streamlit as st
 import pandas as pd
 import joblib
 from pathlib import Path
 import sys
 
-# ==== EXACT feature schema (must match training) ====
+# ==== exact feature schema (must match training) ====
 FEATURES = [
     # Sociodemographic
     "RIAGENDR","RIDRETH3","RIDAGEYR","INDFMPIR",
@@ -20,7 +20,7 @@ FEATURES = [
     "PAQ620","BMXBMI"
 ]
 
-# UI choices — strings must match what the pipeline saw during training
+# dropdown choices — strings must match what the pipeline saw during training
 CHOICES = {
     "RIAGENDR": ["Male","Female"],
     "RIDRETH3": [
@@ -38,16 +38,16 @@ st.set_page_config(page_title="NAFLD Risk Self-Screening Tool", page_icon="🧪"
 st.title("NAFLD Risk Self-Screening Tool")
 st.write("Enter your data below to receive a non-invasive risk assessment.")
 
-# Show versions (helps confirm the environment matches the pickle)
+# show environment versions (helps debug version mismatches)
 try:
-    import sklearn
-    st.caption(f"Python {sys.version.split()[0]} • scikit-learn {sklearn.__version__}")
+    import sklearn, numpy
+    st.caption(f"Python {sys.version.split()[0]} • scikit-learn {sklearn.__version__} • numpy {numpy.__version__}")
 except Exception:
     pass
 
 @st.cache_resource
 def load_pipeline():
-    # Look for the model in repo root, then in models/
+    # look in repo root first, then models/
     root_path = Path(__file__).parent / "nafld_pipeline.pkl"
     models_path = Path(__file__).parent / "models" / "nafld_pipeline.pkl"
     model_path = root_path if root_path.exists() else models_path
@@ -57,17 +57,27 @@ def load_pipeline():
             "Looked for:\n"
             f"• {root_path}\n"
             f"• {models_path}\n\n"
-            "Please commit 'nafld_pipeline.pkl' to your repo root (or models/)."
+            "Please commit 'nafld_pipeline.pkl' to the repo root (or models/)."
         )
         st.stop()
-    return joblib.load(model_path)
+    try:
+        return joblib.load(model_path)
+    except Exception as e:
+        import sklearn, numpy
+        st.error(
+            "Failed to load model pickle. This almost always means the installed "
+            "scikit-learn/numpy/Python versions don’t match the versions used to train it.\n\n"
+            f"Runtime here → Python {sys.version.split()[0]}, sklearn {sklearn.__version__}, numpy {numpy.__version__}\n\n"
+            f"Raw error: {type(e).__name__}: {e}"
+        )
+        st.stop()
 
 pipe = load_pipeline()
 
 with st.form("risk_assessment_form"):
     st.subheader("Sociodemographic & Lifestyle Data")
 
-    # --- Sociodemographic ---
+    # Sociodemographic
     st.markdown("### Sociodemographic Data")
     col1, col2 = st.columns(2)
     with col1:
@@ -77,7 +87,7 @@ with st.form("risk_assessment_form"):
         RIDAGEYR = st.slider("Age in Years (RIDAGEYR)", 18, 99, 45)
         INDFMPIR = st.number_input("Family Income-to-Poverty Ratio (INDFMPIR)", min_value=0.0, value=1.5, step=0.1)
 
-    # --- Alcohol & Smoking ---
+    # Alcohol & Smoking
     st.markdown("### Alcohol and Smoking Data")
     col1, col2 = st.columns(2)
     with col1:
@@ -89,7 +99,7 @@ with st.form("risk_assessment_form"):
         ALQ170 = st.number_input("Number of days had 5+/4+ drinks? (ALQ170)", min_value=0.0, value=0.0, step=1.0)
         ALQ151 = st.selectbox("Ever had 5+/4+ drinks in a day? (ALQ151)", CHOICES["ALQ151"])
 
-    # --- Sleep ---
+    # Sleep
     st.markdown("### Sleep Data")
     col1, col2 = st.columns(2)
     with col1:
@@ -98,7 +108,7 @@ with st.form("risk_assessment_form"):
         SLD012 = st.slider("Average sleep hours per day (SLD012)", 1, 12, 7)
         SLQ120 = st.selectbox("Had a medical sleep diagnosis? (SLQ120)", CHOICES["SLQ120"])
 
-    # --- Diet (24h) ---
+    # Diet (24h)
     st.markdown("### Dietary Intake (Last 24 Hours)")
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -111,7 +121,7 @@ with st.form("risk_assessment_form"):
         DR1TFIBE = st.number_input("Total Fiber (DR1TFIBE)", min_value=0.0, value=25.0, step=1.0)
         DR1TTFAT = st.number_input("Total Fat (DR1TTFAT)", min_value=0.0, value=65.0, step=2.0)
 
-    # --- Physical & Anthropometric ---
+    # Physical & Anthropometric
     st.markdown("### Physical & Anthropometric Data")
     col1, col2 = st.columns(2)
     with col1:
@@ -122,33 +132,17 @@ with st.form("risk_assessment_form"):
     submit = st.form_submit_button("Get Risk Assessment")
 
 if submit:
-    # Build the single-row DataFrame in the exact training order
+    # build the single-row DataFrame in the exact training order
     row = {
-        "RIAGENDR": RIAGENDR,
-        "RIDRETH3": RIDRETH3,
-        "RIDAGEYR": RIDAGEYR,
-        "INDFMPIR": INDFMPIR,
-        "ALQ111": ALQ111,
-        "ALQ142": ALQ142,
-        "Is_Smoker_Cat": Is_Smoker_Cat,
-        "ALQ121": ALQ121,
-        "ALQ170": ALQ170,
-        "ALQ151": ALQ151,
-        "SLQ050": SLQ050,
-        "SLD012": SLD012,
-        "SLQ120": SLQ120,
-        "DR1TKCAL": DR1TKCAL,
-        "DR1TPROT": DR1TPROT,
-        "DR1TCARB": DR1TCARB,
-        "DR1TSUGR": DR1TSUGR,
-        "DR1TFIBE": DR1TFIBE,
-        "DR1TTFAT": DR1TTFAT,
-        "PAQ620": PAQ620,
-        "BMXBMI": BMXBMI,
+        "RIAGENDR": RIAGENDR, "RIDRETH3": RIDRETH3, "RIDAGEYR": RIDAGEYR, "INDFMPIR": INDFMPIR,
+        "ALQ111": ALQ111, "ALQ142": ALQ142, "Is_Smoker_Cat": Is_Smoker_Cat, "ALQ121": ALQ121, "ALQ170": ALQ170, "ALQ151": ALQ151,
+        "SLQ050": SLQ050, "SLD012": SLD012, "SLQ120": SLQ120,
+        "DR1TKCAL": DR1TKCAL, "DR1TPROT": DR1TPROT, "DR1TCARB": DR1TCARB, "DR1TSUGR": DR1TSUGR, "DR1TFIBE": DR1TFIBE, "DR1TTFAT": DR1TTFAT,
+        "PAQ620": PAQ620, "BMXBMI": BMXBMI,
     }
     X = pd.DataFrame([row], columns=FEATURES)
 
-    # Predict
+    # predict
     proba = float(pipe.predict_proba(X)[0, 1])
     pred = int(proba >= 0.5)
 
@@ -159,4 +153,4 @@ if submit:
     else:
         st.success("Based on your data, you are likely at lower risk (threshold 0.5).")
 
-    st.caption("Screening tool, not a diagnosis. Please consult a clinician for medical advice.")
+    st.caption("This is a screening tool, not a diagnosis.")
