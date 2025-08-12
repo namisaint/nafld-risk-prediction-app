@@ -3,40 +3,33 @@ import pandas as pd
 import joblib
 import shap
 import matplotlib.pyplot as plt
-import seaborn as sns
-from sklearn.metrics import confusion_matrix, roc_auc_score, accuracy_score, precision_score, recall_score
-from sklearn.pipeline import Pipeline
-from sklearn.compose import ColumnTransformer
-from sklearn.preprocessing import OneHotEncoder
-from sklearn.impute import SimpleImputer
-import numpy as np
 from pathlib import Path
 import sys
 
 # ===== exact feature schema (must match training) =====
 FEATURES = [
-    'Gender','Age in years','Race/Ethnicity','Family income ratio',
-    'Smoking status','Sleep Disorder Status','Sleep duration (hours/day)',
-    'Work schedule duration (hours)','Physical activity (minutes/day)','BMI',
-    'Alcohol consumption (days/week)','Alcohol drinks per day',
-    'Number of days drank in the past year','Max number of drinks on any single day',
+    'Gender', 'Age in years', 'Race/Ethnicity', 'Family income ratio',
+    'Smoking status', 'Sleep Disorder Status', 'Sleep duration (hours/day)',
+    'Work schedule duration (hours)', 'Physical activity (minutes/day)', 'BMI',
+    'Alcohol consumption (days/week)', 'Alcohol drinks per day',
+    'Number of days drank in the past year', 'Max number of drinks on any single day',
     'Alcohol intake frequency (drinks/day)',
-    'Total calorie intake (kcal)','Total protein intake (grams)','Total carbohydrate intake (grams)',
-    'Total sugar intake (grams)','Total fiber intake (grams)','Total fat intake (grams)'
+    'Total calorie intake (kcal)', 'Total protein intake (grams)', 'Total carbohydrate intake (grams)',
+    'Total sugar intake (grams)', 'Total fiber intake (grams)', 'Total fat intake (grams)'
 ]
 
 # dropdown choices — strings must match what the pipeline saw during training
 CHOICES = {
-    "RIAGENDR": ["Male","Female"],
+    "RIAGENDR": ["Male", "Female"],
     "RIDRETH3": [
-        "Mexican American","Other Hispanic","Non-Hispanic White",
-        "Non-Hispanic Black","Non-Hispanic Asian","Other/Multi"
+        "Mexican American", "Other Hispanic", "Non-Hispanic White",
+        "Non-Hispanic Black", "Non-Hispanic Asian", "Other/Multi"
     ],
-    "ALQ111": ["Yes","No"],
-    "ALQ151": ["Yes","No"],
-    "SLQ120": ["Yes","No"],
-    "SLQ050": ["Never","Rarely","Sometimes","Often","Almost always"],
-    "Is_Smoker_Cat": ["Never","Former","Current"],
+    "ALQ111": ["Yes", "No"],
+    "ALQ151": ["Yes", "No"],
+    "SLQ120": ["Yes", "No"],
+    "SLQ050": ["Never", "Rarely", "Sometimes", "Often", "Almost always"],
+    "Is_Smoker_Cat": ["Never", "Former", "Current"],
 }
 
 st.set_page_config(page_title="NAFLD Risk Self-Screening Tool", page_icon="🧪", layout="wide")
@@ -50,22 +43,19 @@ try:
 except Exception:
     pass
 
-
 # --- Pipeline and Data Loading ---
-
 @st.cache_data
 def get_local_data():
     try:
-        df = pd.read_csv('preprocessed_data_sample.csv') 
+        df = pd.read_csv(Path('preprocessed_data_sample.csv'))
         return df
     except FileNotFoundError:
         st.error("The data file 'preprocessed_data_sample.csv' was not found. Please upload it to GitHub.")
         st.stop()
 
-
 @st.cache_resource
 def load_pipeline():
-    pipeline_path = 'nafld_pipeline.pkl'
+    pipeline_path = Path('nafld_pipeline.pkl')
     try:
         with open(pipeline_path, 'rb') as f:
             return joblib.load(f)
@@ -80,9 +70,7 @@ def load_pipeline():
 df_sample = get_local_data()
 pipeline = load_pipeline()
 
-
 # --- Main Streamlit App Logic ---
-
 with st.form("risk_assessment_form"):
     st.subheader("Sociodemographic & Lifestyle Data")
 
@@ -152,7 +140,7 @@ if submit:
     X = pd.DataFrame([row], columns=FEATURES)
 
     # predict
-    proba = float(pipe.predict_proba(X)[0, 1])
+    proba = float(pipeline.predict_proba(X)[0, 1])
     pred = int(proba >= 0.5)
 
     st.subheader("Your Results")
@@ -165,12 +153,9 @@ if submit:
     st.caption("This is a screening tool, not a diagnosis.")
 
     st.subheader("Explanation of the Prediction")
-    
-    explainer = shap.TreeExplainer(pipe.named_steps['model'])
-    preprocessed_user_data = pipe.named_steps['preprocess'].transform(X)
-
-    feature_names = pipe.named_steps['preprocess'].get_feature_names_out()
-
+    explainer = shap.TreeExplainer(pipeline.named_steps['model'])
+    preprocessed_user_data = pipeline.named_steps['preprocess'].transform(X)
+    feature_names = pipeline.named_steps['preprocess'].get_feature_names_out()
     shap_values = explainer.shap_values(preprocessed_user_data)
     
     st.write("This chart shows how each factor contributed to your risk score:")
