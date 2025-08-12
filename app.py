@@ -25,7 +25,7 @@ def get_local_data():
 
 @st.cache_resource
 def load_pipeline():
-    pipeline_path = 'models.pkl'
+    pipeline_path = 'nafld_pipeline.pkl'
     try:
         with open(pipeline_path, 'rb') as f:
             return joblib.load(f)
@@ -222,4 +222,3 @@ with tab2:
             st.error(f"An error occurred during model analysis: {e}")
     else:
         st.warning("No data available to perform analysis.")
-
