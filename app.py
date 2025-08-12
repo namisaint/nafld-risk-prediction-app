@@ -1,76 +1,71 @@
+# app.py — NAFLD Risk Self-Screening (uses saved scikit-learn Pipeline)
+# Works with pipeline saved using scikit-learn 1.5.2 / numpy 2.0.x (Python 3.13 on Streamlit)
+
 import streamlit as st
 import pandas as pd
 import joblib
-import shap
-import matplotlib.pyplot as plt
 from pathlib import Path
 import sys
 
-# ===== exact feature schema (must match training) =====
+# ===== EXACT feature schema (must match training) =====
 FEATURES = [
-    'Gender', 'Age in years', 'Race/Ethnicity', 'Family income ratio',
-    'Smoking status', 'Sleep Disorder Status', 'Sleep duration (hours/day)',
-    'Work schedule duration (hours)', 'Physical activity (minutes/day)', 'BMI',
-    'Alcohol consumption (days/week)', 'Alcohol drinks per day',
-    'Number of days drank in the past year', 'Max number of drinks on any single day',
-    'Alcohol intake frequency (drinks/day)',
-    'Total calorie intake (kcal)', 'Total protein intake (grams)', 'Total carbohydrate intake (grams)',
-    'Total sugar intake (grams)', 'Total fiber intake (grams)', 'Total fat intake (grams)'
+    # Sociodemographic
+    "RIAGENDR","RIDRETH3","RIDAGEYR","INDFMPIR",
+    # Alcohol & Smoking
+    "ALQ111","ALQ142","Is_Smoker_Cat","ALQ121","ALQ170","ALQ151",
+    # Sleep
+    "SLQ050","SLD012","SLQ120",
+    # Diet (24h)
+    "DR1TKCAL","DR1TPROT","DR1TCARB","DR1TSUGR","DR1TFIBE","DR1TTFAT",
+    # Physical & Anthropometric
+    "PAQ620","BMXBMI"
 ]
 
-# dropdown choices — strings must match what the pipeline saw during training
+# Dropdown choices — strings must match what the pipeline saw during training
 CHOICES = {
-    "RIAGENDR": ["Male", "Female"],
+    "RIAGENDR": ["Male","Female"],
     "RIDRETH3": [
-        "Mexican American", "Other Hispanic", "Non-Hispanic White",
-        "Non-Hispanic Black", "Non-Hispanic Asian", "Other/Multi"
+        "Mexican American","Other Hispanic","Non-Hispanic White",
+        "Non-Hispanic Black","Non-Hispanic Asian","Other/Multi"
     ],
-    "ALQ111": ["Yes", "No"],
-    "ALQ151": ["Yes", "No"],
-    "SLQ120": ["Yes", "No"],
-    "SLQ050": ["Never", "Rarely", "Sometimes", "Often", "Almost always"],
-    "Is_Smoker_Cat": ["Never", "Former", "Current"],
+    "ALQ111": ["Yes","No"],
+    "ALQ151": ["Yes","No"],
+    "SLQ120": ["Yes","No"],
+    "SLQ050": ["Never","Rarely","Sometimes","Often","Almost always"],
+    "Is_Smoker_Cat": ["Never","Former","Current"],
 }
 
 st.set_page_config(page_title="NAFLD Risk Self-Screening Tool", page_icon="🧪", layout="wide")
 st.title("NAFLD Risk Self-Screening Tool")
 st.write("Enter your data below to receive a non-invasive risk assessment.")
 
-# show env versions (helps catch version mismatches)
+# Show env versions (helps catch version mismatches)
 try:
     import sklearn, numpy
     st.caption(f"Python {sys.version.split()[0]} • scikit-learn {sklearn.__version__} • numpy {numpy.__version__}")
 except Exception:
     pass
 
-# --- Pipeline and Data Loading ---
-@st.cache_data
-def get_local_data():
-    try:
-        df = pd.read_csv(Path('preprocessed_data_sample.csv'))
-        return df
-    except FileNotFoundError:
-        st.error("The data file 'preprocessed_data_sample.csv' was not found. Please upload it to GitHub.")
-        st.stop()
-
 @st.cache_resource
 def load_pipeline():
-    pipeline_path = Path('nafld_pipeline.pkl')
+    model_path = Path(__file__).parent / "models" / "nafld_pipeline.pkl"
+    if not model_path.exists():
+        st.error(f"Model file not found at: {model_path}\n\nMake sure it’s committed there.")
+        st.stop()
     try:
-        with open(pipeline_path, 'rb') as f:
-            return joblib.load(f)
-    except FileNotFoundError:
-        st.error(f"The pipeline file '{pipeline_path}' was not found. Please ensure it is uploaded to GitHub.")
-        st.stop()
+        return joblib.load(model_path)
     except Exception as e:
-        st.error(f"The pipeline file could not be loaded. This often happens due to a Python version mismatch. Details: {e}")
+        import sklearn, numpy
+        st.error(
+            "Failed to load model pickle. This usually means the installed "
+            "scikit-learn/numpy/Python versions don’t match the training versions.\n\n"
+            f"Runtime → Python {sys.version.split()[0]}, sklearn {sklearn.__version__}, numpy {numpy.__version__}\n\n"
+            f"Raw error: {type(e).__name__}: {e}"
+        )
         st.stop()
 
-# Load the data and model pipeline
-df_sample = get_local_data()
-pipeline = load_pipeline()
+pipe = load_pipeline()
 
-# --- Main Streamlit App Logic ---
 with st.form("risk_assessment_form"):
     st.subheader("Sociodemographic & Lifestyle Data")
 
@@ -129,7 +124,7 @@ with st.form("risk_assessment_form"):
     submit = st.form_submit_button("Get Risk Assessment")
 
 if submit:
-    # build the single-row DataFrame in the exact training order
+    # Build the single-row DataFrame in the exact training order
     row = {
         "RIAGENDR": RIAGENDR, "RIDRETH3": RIDRETH3, "RIDAGEYR": RIDAGEYR, "INDFMPIR": INDFMPIR,
         "ALQ111": ALQ111, "ALQ142": ALQ142, "Is_Smoker_Cat": Is_Smoker_Cat, "ALQ121": ALQ121, "ALQ170": ALQ170, "ALQ151": ALQ151,
@@ -139,8 +134,8 @@ if submit:
     }
     X = pd.DataFrame([row], columns=FEATURES)
 
-    # predict
-    proba = float(pipeline.predict_proba(X)[0, 1])
+    # Predict
+    proba = float(pipe.predict_proba(X)[0, 1])
     pred = int(proba >= 0.5)
 
     st.subheader("Your Results")
@@ -151,21 +146,3 @@ if submit:
         st.success("Based on your data, you are likely at lower risk (threshold 0.5).")
 
     st.caption("This is a screening tool, not a diagnosis.")
-
-    st.subheader("Explanation of the Prediction")
-    explainer = shap.TreeExplainer(pipeline.named_steps['model'])
-    preprocessed_user_data = pipeline.named_steps['preprocess'].transform(X)
-    feature_names = pipeline.named_steps['preprocess'].get_feature_names_out()
-    shap_values = explainer.shap_values(preprocessed_user_data)
-    
-    st.write("This chart shows how each factor contributed to your risk score:")
-    shap.initjs()
-    plt.figure()
-    shap.force_plot(
-        explainer.expected_value[1], 
-        shap_values[1], 
-        preprocessed_user_data, 
-        feature_names=feature_names,
-        show=False
-    )
-    st.pyplot(plt.gcf())
