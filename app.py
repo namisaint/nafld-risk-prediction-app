@@ -1,10 +1,12 @@
 # app.py — NAFLD Risk Self-Screening (uses saved pipeline)
+# Works with pipeline saved using scikit-learn 1.5.2 / numpy 2.0.x
 import streamlit as st
 import pandas as pd
 import joblib
 from pathlib import Path
+import sys
 
-# ==== EXACT feature schema (must match what you trained) ====
+# ==== EXACT feature schema (must match training) ====
 FEATURES = [
     # Sociodemographic
     "RIAGENDR","RIDRETH3","RIDAGEYR","INDFMPIR",
@@ -18,7 +20,7 @@ FEATURES = [
     "PAQ620","BMXBMI"
 ]
 
-# dropdown choices (strings must match training after code->label mapping)
+# UI choices — strings must match what the pipeline saw during training
 CHOICES = {
     "RIAGENDR": ["Male","Female"],
     "RIDRETH3": [
@@ -36,14 +38,26 @@ st.set_page_config(page_title="NAFLD Risk Self-Screening Tool", page_icon="🧪"
 st.title("NAFLD Risk Self-Screening Tool")
 st.write("Enter your data below to receive a non-invasive risk assessment.")
 
+# Show versions (helps confirm the environment matches the pickle)
+try:
+    import sklearn
+    st.caption(f"Python {sys.version.split()[0]} • scikit-learn {sklearn.__version__}")
+except Exception:
+    pass
+
 @st.cache_resource
 def load_pipeline():
-    # your model file is in the repo ROOT as 'nafld_pipeline.pkl'
-    model_path = Path(__file__).parent / "nafld_pipeline.pkl"
+    # Look for the model in repo root, then in models/
+    root_path = Path(__file__).parent / "nafld_pipeline.pkl"
+    models_path = Path(__file__).parent / "models" / "nafld_pipeline.pkl"
+    model_path = root_path if root_path.exists() else models_path
     if not model_path.exists():
         st.error(
-            f"Model file not found at: {model_path}\n\n"
-            "Make sure 'nafld_pipeline.pkl' is committed to the repo root."
+            "Model file not found.\n\n"
+            "Looked for:\n"
+            f"• {root_path}\n"
+            f"• {models_path}\n\n"
+            "Please commit 'nafld_pipeline.pkl' to your repo root (or models/)."
         )
         st.stop()
     return joblib.load(model_path)
@@ -84,7 +98,7 @@ with st.form("risk_assessment_form"):
         SLD012 = st.slider("Average sleep hours per day (SLD012)", 1, 12, 7)
         SLQ120 = st.selectbox("Had a medical sleep diagnosis? (SLQ120)", CHOICES["SLQ120"])
 
-    # --- Diet ---
+    # --- Diet (24h) ---
     st.markdown("### Dietary Intake (Last 24 Hours)")
     col1, col2, col3 = st.columns(3)
     with col1:
@@ -108,7 +122,7 @@ with st.form("risk_assessment_form"):
     submit = st.form_submit_button("Get Risk Assessment")
 
 if submit:
-    # build the single-row DataFrame in the exact training order
+    # Build the single-row DataFrame in the exact training order
     row = {
         "RIAGENDR": RIAGENDR,
         "RIDRETH3": RIDRETH3,
@@ -134,6 +148,7 @@ if submit:
     }
     X = pd.DataFrame([row], columns=FEATURES)
 
+    # Predict
     proba = float(pipe.predict_proba(X)[0, 1])
     pred = int(proba >= 0.5)
 
@@ -144,4 +159,4 @@ if submit:
     else:
         st.success("Based on your data, you are likely at lower risk (threshold 0.5).")
 
-    st.caption("This is a screening tool and not a diagnosis.")
+    st.caption("Screening tool, not a diagnosis. Please consult a clinician for medical advice.")
