@@ -56,7 +56,6 @@ except Exception:
 @st.cache_data
 def get_local_data():
     try:
-        # Load a small sample of the pre-processed data
         df = pd.read_csv('preprocessed_data_sample.csv') 
         return df
     except FileNotFoundError:
@@ -166,5 +165,22 @@ if submit:
     st.caption("This is a screening tool, not a diagnosis.")
 
     st.subheader("Explanation of the Prediction")
-    st.warning("SHAP is not yet implemented for the full pipeline. Please use a separate model file to see SHAP plots.")
+    
+    explainer = shap.TreeExplainer(pipe.named_steps['model'])
+    preprocessed_user_data = pipe.named_steps['preprocess'].transform(X)
 
+    feature_names = pipe.named_steps['preprocess'].get_feature_names_out()
+
+    shap_values = explainer.shap_values(preprocessed_user_data)
+    
+    st.write("This chart shows how each factor contributed to your risk score:")
+    shap.initjs()
+    plt.figure()
+    shap.force_plot(
+        explainer.expected_value[1], 
+        shap_values[1], 
+        preprocessed_user_data, 
+        feature_names=feature_names,
+        show=False
+    )
+    st.pyplot(plt.gcf())
