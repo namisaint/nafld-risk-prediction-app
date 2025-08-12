@@ -1,8 +1,10 @@
+# app.py — NAFLD Risk Self-Screening (uses saved pipeline)
 import streamlit as st
 import pandas as pd
 import joblib
+from pathlib import Path
 
-# ==== EXACT features (must match the pipeline training) ====
+# ==== EXACT feature schema (must match what you trained) ====
 FEATURES = [
     # Sociodemographic
     "RIAGENDR","RIDRETH3","RIDAGEYR","INDFMPIR",
@@ -16,7 +18,7 @@ FEATURES = [
     "PAQ620","BMXBMI"
 ]
 
-# Dropdown choices (strings must match what the pipeline saw during training)
+# dropdown choices (strings must match training after code->label mapping)
 CHOICES = {
     "RIAGENDR": ["Male","Female"],
     "RIDRETH3": [
@@ -36,9 +38,15 @@ st.write("Enter your data below to receive a non-invasive risk assessment.")
 
 @st.cache_resource
 def load_pipeline():
-    # Load the single Pipeline saved by train_pipeline.py
-    # (It contains imputation + OneHot + scaling + model)
-    return joblib.load("models/nafld_pipeline.pkl")
+    # your model file is in the repo ROOT as 'nafld_pipeline.pkl'
+    model_path = Path(__file__).parent / "nafld_pipeline.pkl"
+    if not model_path.exists():
+        st.error(
+            f"Model file not found at: {model_path}\n\n"
+            "Make sure 'nafld_pipeline.pkl' is committed to the repo root."
+        )
+        st.stop()
+    return joblib.load(model_path)
 
 pipe = load_pipeline()
 
@@ -100,7 +108,7 @@ with st.form("risk_assessment_form"):
     submit = st.form_submit_button("Get Risk Assessment")
 
 if submit:
-    # Build a single-row DataFrame in the exact training order
+    # build the single-row DataFrame in the exact training order
     row = {
         "RIAGENDR": RIAGENDR,
         "RIDRETH3": RIDRETH3,
@@ -136,4 +144,4 @@ if submit:
     else:
         st.success("Based on your data, you are likely at lower risk (threshold 0.5).")
 
-    st.caption("Note: This tool is for screening only and does not provide a medical diagnosis.")
+    st.caption("This is a screening tool and not a diagnosis.")
